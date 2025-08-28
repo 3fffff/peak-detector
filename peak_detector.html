@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <style>
+        body {
+            height: 100vh;
+            width: 100vw;
+        }
+
+        * {
+            padding: 0;
+            margin: 0;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="drop-zone">
+        <p>Drag & Drop files here</p>
+    </div>
+    <div id="stage1" height="700"></div>
+    <div id="myDiv" height="700"></div>
+</body>
+
+<script src="plotly.min.js"></script>
+<script type="module">
+    import Module from "./wasi-minimal.js"
+
+    const readUploadedFileAsText = inputFile => {
+        const temporaryFileReader = new FileReader();
+        temporaryFileReader.onabort = function (e) {
+            console.log('File read cancelled');
+        };
+        return new Promise((resolve, reject) => {
+            temporaryFileReader.onerror = () => {
+                temporaryFileReader.abort();
+                reject(new DOMException("Problem parsing input file."));
+            };
+            temporaryFileReader.onload = () => {
+                resolve(temporaryFileReader.result);
+            };
+            temporaryFileReader.readAsText(inputFile);
+        });
+    };
+
+    const handleUpload = async event => {
+        const dt = event.dataTransfer;
+        const file = dt.files[0]; // This is a FileList object
+        try {
+            const fileContents = await readUploadedFileAsText(file);
+            console.log(fileContents)
+            const data = []
+            const dataPlot = []
+            const arr = fileContents.split(",")
+            for (let i = 0; i < arr.length; i++)
+                data.push(parseFloat(arr[i]))
+            const memory = new WebAssembly.Memory({ initial: 1000 });
+            const wasm = await loadWasm(memory)
+            const peaks = []
+            const pInput = wasm.exports.malloc(data.length * 4);
+            const view1 = new DataView(memory.buffer);
+            for (let i = 0; i < data.length; i++)
+                view1.setFloat32(pInput + 4 * i, data[i], true)
+            const pOutput = wasm.exports.peak_detect(pInput, data.length);
+            const view2 = new DataView(memory.buffer);
+            for (let i = 0; i < data.length; i++)
+                peaks.push(view2.getInt8(pOutput + i, false))
+            dataPlot.push({
+                name: "data", y: data, type: 'scatter', type: 'scatter',
+            })
+            dataPlot.push({
+                name: "peaks", y: peaks, type: 'scatter', type: 'scatter',
+            })
+
+            Plotly.newPlot('stage1', dataPlot, {
+                title: 'График', height: document.body.offsetHeight,
+            });
+        } catch (e) {
+            console.log(e)
+        }
+    }
+
+    function abFilter(a, b, y) {
+        this.v_prev = 0;
+        this.Q_prev = 0;
+        this.P_prev = 0;
+        this.a = a
+        this.b = b
+        this.y = y
+        return function (z) {
+            const x = z - (this.v_prev + 0.5 * this.Q_prev);
+            const P = 0.8 * this.P_prev + 0.2 * (this.v_prev + 0.5 * this.Q_prev) + this.a * x;
+            const v = this.v_prev + this.Q_prev + this.b * x;
+            const Q = this.Q_prev + this.y * x;
+
+            this.v_prev = v;
+            this.P_prev = P;
+            this.Q_prev = Q;
+
+            return P;
+        }
+    }
+
+    const dropZone = document.getElementById('drop-zone');
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, highlight, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, unhighlight, false);
+    });
+
+    function highlight(e) {
+        dropZone.classList.add('highlight'); // Add a CSS class for highlighting
+    }
+
+    function unhighlight(e) {
+        dropZone.classList.remove('highlight'); // Remove the CSS class
+    }
+    dropZone.addEventListener('drop', handleUpload, false);
+
+    async function loadWasm(memory) {
+        const m = new Module({ memory: memory })
+        const importObject = {
+            wasi_snapshot_preview1: m.exports, env: { memory }
+        };
+
+        const response = await fetch('./peak_detector.wasm');
+        const bytes = await response.arrayBuffer();
+        const { instance } = await WebAssembly.instantiate(bytes, importObject);
+
+        return instance
+    }
+
+</script>
+
+
+</html>

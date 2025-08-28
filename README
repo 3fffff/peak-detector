@@ -1,0 +1,2 @@
+command to compile wasm
+clang --target=wasm32-unknown-wasi --sysroot M:\sysroot -nostartfiles -Wl,--import-memory -Wl,--no-entry -Wl,--export-all -o peak_detector.wasm peak_detector.c -g -O0

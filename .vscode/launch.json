@@ -1,0 +1,31 @@
+{
+    "configurations": [
+        {
+            "name": "Launch Chrome",
+            "request": "launch",
+            "type": "chrome",
+            "runtimeArgs": [
+                "--allow-file-access-from-files",
+                "--autoplay-policy=no-user-gesture-required",
+                "--enable-features=SharedArrayBuffer"
+            ],
+            "file": "${workspaceFolder}/peak_detector.html",
+            "cwd": "${workspaceFolder}/",
+        },
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "Launch Chrome against localhost",
+            "url": "http://localhost:3002/peak_detector.html",
+            "urlFilter": "http://localhost:3002/*",
+            "webRoot": "${workspaceFolder}", // Adjust if your web root is in a subdirectory
+            "port": 9222,
+            "cwd": "${workspaceRoot}",
+            "runtimeArgs": [
+                "--allow-file-access-from-files",
+                "--autoplay-policy=no-user-gesture-required",
+                "--enable-features=SharedArrayBuffer"
+            ],
+        }
+    ]
+}
